@@ -1,0 +1,2384 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImpAct - iOS Liquid Glass Time Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Identity Services (OAuth pour Google Drive) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        
+        /* Palette de Couleurs Officielles Apple System */
+        :root {
+            --apple-red: #FF3B30;
+            --apple-green: #34C759;
+            --apple-orange: #FF9500;
+            --apple-blue: #007AFF;
+            --apple-purple: #AF52DE;
+
+            /* Couleurs de texte "label" iOS/macOS (échelle de gris translucide sur fond clair) */
+            --label-primary: #1D1D1F;
+            --label-secondary: rgba(60, 60, 67, 0.68);
+            --label-tertiary: rgba(60, 60, 67, 0.42);
+        }
+
+        .bg-apple-green { background-color: var(--apple-green); }
+        .bg-apple-red { background-color: var(--apple-red); }
+        .bg-apple-orange { background-color: var(--apple-orange); }
+        .bg-apple-blue { background-color: var(--apple-blue); }
+        .text-apple-orange { color: var(--apple-orange); }
+
+        /* Échelle de texte Apple : remplace les gris Tailwind génériques */
+        .text-primary { color: var(--label-primary); }
+        .text-secondary { color: var(--label-secondary); }
+        .text-tertiary { color: var(--label-tertiary); }
+
+        /* Arrière-plan dynamique liquide */
+        body {
+            background: linear-gradient(135deg, #f8fafc, #e0e7ff, #f5f3ff);
+            background-attachment: fixed;
+        }
+
+        /* Apple Liquid Glassmorphism Premium */
+        .liquid-glass {
+            background: rgba(255, 255, 255, 0.42);
+            backdrop-filter: blur(35px) saturate(230%) contrast(98%);
+            -webkit-backdrop-filter: blur(35px) saturate(230%) contrast(98%);
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            box-shadow: 
+                inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.6),
+                inset 0 -1px 1px 0 rgba(0, 0, 0, 0.02),
+                0 4px 15px -2px rgba(0, 0, 0, 0.02),
+                0 10px 30px -10px rgba(31, 38, 135, 0.05);
+        }
+
+        /* Modales Apple Liquid Glass - Transparence, clarté et réfraction de bordure maximum */
+        .modal-glass {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(40px) saturate(240%) contrast(95%);
+            -webkit-backdrop-filter: blur(40px) saturate(240%) contrast(95%);
+            border: 1.5px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 
+                inset 0 1px 1px 0 rgba(255, 255, 255, 0.7),
+                0 20px 60px -10px rgba(0, 0, 0, 0.12);
+        }
+
+        /* Micro-animations réactives type "spring" (ressort) — réservées aux boutons actifs */
+        .btn-active {
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        filter 0.25s ease,
+                        background-color 0.25s ease,
+                        box-shadow 0.25s ease;
+        }
+        .btn-active:hover {
+            transform: scale(1.04) translateY(-1px);
+            filter: brightness(1.06);
+        }
+        .btn-active:active {
+            transform: scale(0.95);
+            transition-duration: 0.15s;
+        }
+
+        /* Cartes cliquables (navigation par cards) : verre qui s'éclaircit, se soulève         et laisse passer un reflet liquide au survol */
+        .card-nav {
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        background-color 0.3s ease,
+                        border-color 0.3s ease,
+                        box-shadow 0.3s ease;
+        }
+        .card-nav::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(115deg, rgba(255,255,255,0) 35%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 65%);
+            transform: translateX(-140%);
+            transition: transform 0.7s ease;
+            pointer-events: none;
+        }
+        .card-nav:hover {
+            transform: translateY(-3px) scale(1.012);
+            background-color: rgba(255, 255, 255, 0.5) !important;
+            border-color: rgba(255, 255, 255, 0.75) !important;
+            box-shadow: 0 14px 30px -10px rgba(31, 38, 135, 0.16),
+                        inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.7);
+        }
+        .card-nav:hover::before {
+            transform: translateX(140%);
+        }
+        .card-nav:active {
+            transform: translateY(-1px) scale(0.995);
+        }
+
+        /* Bouton Saisie Manuelle (Bleu -> Vert émérite Apple au survol) */
+        .btn-saisie-manuelle {
+            background-color: var(--apple-blue);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .btn-saisie-manuelle:hover {
+            background-color: var(--apple-green);
+            transform: scale(1.015) translateY(-1px);
+        }
+        .btn-saisie-manuelle:active {
+            transform: scale(0.97);
+        }
+
+        /* Segmented control glass (onglets de filtre) : indicateur "pilule" translucide plutôt qu'un aplat de couleur */
+        .segment-track {
+            background: rgba(255, 255, 255, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .scope-btn {
+            transition: background-color 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        color 0.35s ease,
+                        box-shadow 0.35s ease;
+        }
+        .scope-btn[aria-selected="true"] {
+            background: rgba(255, 255, 255, 0.85);
+            color: var(--label-primary);
+            box-shadow: 0 2px 8px -2px rgba(31, 38, 135, 0.15),
+                        inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+        }
+        .scope-btn[aria-selected="false"] {
+            color: var(--label-secondary);
+        }
+        .scope-btn[aria-selected="false"]:hover {
+            background: rgba(255, 255, 255, 0.35);
+            color: var(--label-primary);
+        }
+
+        /* Orbes liquides animés en arrière-plan */
+        .orb {
+            position: absolute;
+            width: 350px;
+            height: 350px;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: -10;
+            opacity: 0.55;
+            animation: moveOrb 25s infinite alternate ease-in-out;
+        }
+        @keyframes moveOrb {
+            0% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(120px, 80px) scale(1.15); }
+            100% { transform: translate(-80px, 160px) scale(0.9); }
+        }
+
+        /* Focus visible pour navigation au clavier (RGAA) */
+        *:focus-visible {
+            outline: 3px solid #7e22ce !important;
+            outline-offset: 2px !important;
+        }
+    </style>
+</head>
+<body class="text-primary min-h-full relative overflow-x-hidden">
+
+    <!-- Orbes fluides décoratifs en arrière-plan -->
+    <div class="orb bg-indigo-200 top-12 left-10"></div>
+    <div class="orb bg-purple-200 bottom-24 right-10" style="animation-delay: -5s;"></div>
+    <div class="orb bg-pink-200 top-1/2 left-1/3" style="animation-delay: -10s;"></div>
+
+    <!-- DATALISTS POUR L'AUTOCOMPLÉTION -->
+    <datalist id="category-autocomplete"></datalist>
+    <datalist id="subtask-autocomplete"></datalist>
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8 space-y-6 relative z-10">
+        
+        <!-- HEADER DE L'APPLICATION (Liquid Glass) -->
+        <header role="banner" class="liquid-glass rounded-3xl p-6 flex flex-wrap justify-between items-center gap-4 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-purple-600/10 rounded-2xl border border-purple-500/20">
+                    <i data-lucide="clock" class="text-purple-700 w-8 h-8" aria-hidden="true"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-extrabold tracking-tight text-primary">ImpAct Time Tracker</h1>
+                    <p class="text-sm text-secondary font-medium">Suivi individuel d'activité & analyses</p>
+                </div>
+            </div>
+
+            <!-- Boutons de contrôle globaux -->
+            <nav class="flex items-center gap-3" aria-label="Contrôles globaux de l'application">
+                <!-- Statut Google Drive -->
+                <button type="button" id="drive-status-btn" onclick="handleDriveStatusClick()" class="btn-active flex items-center gap-2 bg-white/40 hover:bg-white/65 border border-white/60 text-primary font-semibold px-4 py-2.5 rounded-full shadow-sm">
+                    <i data-lucide="cloud-off" id="drive-status-icon" class="w-4 h-4 text-slate-500" aria-hidden="true"></i>
+                    <span id="drive-status-label">Connecter Google Drive</span>
+                </button>
+                <!-- Import -->
+                <label class="btn-active flex items-center gap-2 bg-white/40 hover:bg-white/65 border border-white/60 cursor-pointer text-primary font-semibold px-4 py-2.5 rounded-full shadow-sm">
+                    <i data-lucide="file-up" class="w-4 h-4 text-purple-700" aria-hidden="true"></i>
+                    <span>Importer un CSV</span>
+                    <input type="file" id="import-csv" accept=".csv" class="sr-only" onchange="handleCSVImport(event)" aria-label="Importer un fichier CSV d'activité">
+                </label>
+                <!-- Export Global -->
+                <button type="button" onclick="exportAllToCSV()" class="btn-active flex items-center gap-2 bg-purple-700 text-white font-semibold px-4 py-2.5 rounded-full shadow-md">
+                    <i data-lucide="cloud-lightning" class="w-4 h-4" aria-hidden="true"></i>
+                    <span>Exporter (iCloud CSV)</span>
+                </button>
+            </nav>
+        </header>
+
+        <!-- BANNER ALERTE SAUVEGARDE DYNAMIQUE -->
+        <div id="save-reminder-banner" class="hidden liquid-glass border-amber-400/50 rounded-3xl p-4 flex flex-wrap justify-between items-center gap-4 shadow-sm" role="alert">
+            <div class="flex items-center gap-3 text-amber-900">
+                <div class="p-2 bg-amber-500/10 rounded-xl">
+                    <i data-lucide="alert-triangle" class="text-apple-orange w-5 h-5" aria-hidden="true"></i>
+                </div>
+                <div>
+                    <span class="text-sm font-bold block">Pensez à sauvegarder vos tâches avant de fermer le navigateur !</span>
+                    <span class="text-xs text-amber-700/80">Vos données actuelles sont stockées localement, mais un export CSV régulier est recommandé.</span>
+                </div>
+            </div>
+            <button type="button" onclick="exportAllToCSV()" class="btn-active flex items-center gap-2 bg-apple-orange text-white font-bold text-xs px-4 py-2.5 rounded-full shadow-sm">
+                <i data-lucide="download" class="w-4 h-4" aria-hidden="true"></i>
+                <span>Sauvegarder en CSV</span>
+            </button>
+        </div>
+
+        <!-- CONTENU PRINCIPAL -->
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-6" role="main">
+            
+            <!-- COLONNE DE GAUCHE : MINUTEUR, ATTENTES & CATALOGUE -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- Section 1 : Minuteur (Liquid Glass) -->
+                <section class="liquid-glass rounded-3xl p-6 shadow-lg flex flex-col justify-between" aria-labelledby="timer-section-title">
+                    <div>
+                        <h2 id="timer-section-title" class="text-lg font-bold flex items-center gap-2 text-primary mb-4 uppercase tracking-wide">
+                            <i data-lucide="play-circle" class="w-5 h-5 text-purple-600" aria-hidden="true"></i> Minuteur Temps Réel
+                        </h2>
+
+                        <div class="space-y-4">
+                            <!-- Sélection tâche -->
+                            <div>
+                                <label for="timer-task-select" class="block text-sm font-bold text-secondary mb-1.5">
+                                    Sélectionner la tâche active
+                                </label>
+                                <select id="timer-task-select" onchange="handleTimerTaskChange()" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl focus:ring-2 focus:ring-purple-600 backdrop-blur-md">
+                                    <!-- Rempli en JS -->
+                                </select>
+                            </div>
+
+                            <!-- Chronomètre -->
+                            <div class="py-6 text-center bg-white/20 rounded-2xl border border-white/30">
+                                <div id="timer-display" class="text-5xl font-black tracking-wider font-mono text-primary" aria-live="polite" aria-atomic="true">
+                                    00:00:00
+                                </div>
+                                <p id="current-running-task" class="text-sm text-secondary mt-2 font-medium italic">
+                                    Aucun suivi en cours
+                                </p>
+                            </div>
+
+                            <!-- Boutons minuteur -->
+                            <div class="flex justify-center gap-4">
+                                <button type="button" id="btn-start" onclick="startTimer()" class="btn-active w-14 h-14 rounded-full bg-apple-green text-white flex items-center justify-center shadow-lg" aria-label="Démarrer le minuteur">
+                                    <i data-lucide="play" class="w-6 h-6 fill-current" aria-hidden="true"></i>
+                                </button>
+                                <button type="button" id="btn-pause" onclick="pauseTimer()" class="btn-active hidden w-14 h-14 rounded-full bg-apple-orange text-white flex items-center justify-center shadow-lg" aria-label="Mettre en pause le minuteur">
+                                    <i data-lucide="pause" class="w-6 h-6 fill-current" aria-hidden="true"></i>
+                                </button>
+                                <button type="button" id="btn-stop" onclick="stopTimer()" class="btn-active w-14 h-14 rounded-full bg-apple-red text-white flex items-center justify-center shadow-lg opacity-50 cursor-not-allowed" disabled aria-label="Arrêter et enregistrer le minuteur">
+                                    <i data-lucide="square" class="w-6 h-6 fill-current" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Annuler la session -->
+                    <div class="mt-8 pt-4 border-t border-slate-200/30 text-center">
+                        <button type="button" id="btn-cancel" onclick="cancelTimer()" class="text-xs text-rose-600 hover:underline font-bold focus:ring-2 focus:ring-rose-500 rounded-lg p-1.5 transition-all" aria-label="Annuler la session en cours">
+                            Annuler la session en cours (effacer le temps)
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Section : SESSIONS EN ATTENTE / GARAGE (Toujours Visible) -->
+                <section id="suspended-section" class="liquid-glass rounded-3xl p-6 shadow-lg" aria-labelledby="suspended-section-title">
+                    <h2 id="suspended-section-title" class="text-lg font-bold flex items-center gap-2 text-primary mb-4 uppercase tracking-wide">
+                        <i data-lucide="pause-circle" class="w-5 h-5 text-apple-orange" aria-hidden="true"></i> Sessions en pause / en attente
+                    </h2>
+                    <div id="suspended-list" class="space-y-2">
+                        <!-- Rempli en JS -->
+                    </div>
+                </section>
+
+                <!-- Section 2 : Catalogue de tâches prédéfinies -->
+                <section class="liquid-glass rounded-3xl p-6 shadow-lg" aria-labelledby="catalogue-section-title">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 id="catalogue-section-title" class="text-lg font-bold flex items-center gap-2 text-primary uppercase tracking-wide">
+                            <i data-lucide="list-todo" class="w-5 h-5 text-emerald-600" aria-hidden="true"></i> Catalogue de Tâches
+                        </h2>
+                        <button type="button" onclick="openNewTaskModal()" class="btn-active flex items-center gap-1 text-xs bg-purple-100 text-purple-800 px-3 py-1.5 rounded-full font-bold border border-purple-200" title="Créer une nouvelle tâche prédéfinie">
+                            <i data-lucide="plus" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                            <span>Créer</span>
+                        </button>
+                    </div>
+                    <div id="tasks-list" class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                        <!-- Rempli en JS -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- COLONNE DE DROITE : SAISIE MANUELLE & ANALYSES -->
+            <div class="lg:col-span-7 space-y-6">
+                
+                <!-- Section 1 : Saisie manuelle d'activité -->
+                <section class="liquid-glass rounded-3xl p-6 shadow-lg" aria-labelledby="manual-section-title">
+                    <h2 id="manual-section-title" class="text-lg font-bold flex items-center gap-2 text-primary mb-4 uppercase tracking-wide">
+                        <i data-lucide="calendar-plus" class="w-5 h-5 text-indigo-600" aria-hidden="true"></i> Saisie Manuelle d'Activité
+                    </h2>
+                    <form id="manual-session-form" onsubmit="handleManualAdd(event)" class="space-y-4">
+                        <div>
+                            <label for="manual-task-select" class="block text-sm font-bold text-secondary mb-1.5">Tâche concernée</label>
+                            <select id="manual-task-select" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl focus:ring-2 focus:ring-purple-600" required>
+                                <!-- Rempli en JS -->
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label for="manual-date" class="block text-sm font-bold text-secondary mb-1.5">Date</label>
+                                <input type="date" id="manual-date" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl" required>
+                            </div>
+                            <div>
+                                <label for="manual-start-time" class="block text-sm font-bold text-secondary mb-1.5">Heure de début</label>
+                                <input type="time" id="manual-start-time" value="09:00" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl" required>
+                            </div>
+                            <div>
+                                <label for="manual-duration" class="block text-sm font-bold text-secondary mb-1.5">Durée (HH:MM)</label>
+                                <input type="text" id="manual-duration" placeholder="ex: 01:30" pattern="[0-9]{2}:[0-5][0-9]" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl" required aria-describedby="duration-format-help">
+                            </div>
+                        </div>
+                        <span id="duration-format-help" class="text-xs text-tertiary block -mt-2">Format de durée : HH:MM (ex: 00:45 pour 45 minutes)</span>
+                        
+                        <!-- Bouton Enregistrer : Bleu system par défaut, passe au Vert au survol -->
+                        <button type="submit" class="btn-saisie-manuelle w-full py-3 text-white font-bold rounded-full shadow-md">
+                            Enregistrer la session
+                        </button>
+                    </form>
+                </section>
+
+                <!-- Section 2 : Analyses & Filtres -->
+                <section class="liquid-glass rounded-3xl p-6 shadow-lg" aria-labelledby="reports-section-title">
+                    <div class="flex flex-wrap justify-between items-center gap-4 mb-3">
+                        <h2 id="reports-section-title" class="text-lg font-bold flex items-center gap-2 text-primary uppercase tracking-wide">
+                            <i data-lucide="bar-chart-3" class="w-5 h-5 text-pink-600" aria-hidden="true"></i> Analyses & Synthèse
+                        </h2>
+                        
+                        <!-- Filtres de dates -->
+                        <div class="segment-track flex p-1 rounded-full" role="tablist" aria-label="Périodes de filtre">
+                            <button type="button" role="tab" aria-selected="true" aria-controls="filter-inputs-container" onclick="changeFilterScope('day')" id="scope-day" class="scope-btn px-3 py-1.5 text-xs font-bold rounded-full">Jour</button>
+                            <button type="button" role="tab" aria-selected="false" aria-controls="filter-inputs-container" onclick="changeFilterScope('week')" id="scope-week" class="scope-btn px-3 py-1.5 text-xs font-bold rounded-full">Semaine</button>
+                            <button type="button" role="tab" aria-selected="false" aria-controls="filter-inputs-container" onclick="changeFilterScope('month')" id="scope-month" class="scope-btn px-3 py-1.5 text-xs font-bold rounded-full">Mois</button>
+                            <button type="button" role="tab" aria-selected="false" aria-controls="filter-inputs-container" onclick="changeFilterScope('range')" id="scope-range" class="scope-btn px-3 py-1.5 text-xs font-bold rounded-full">Date à date</button>
+                            <button type="button" role="tab" aria-selected="false" aria-controls="filter-inputs-container" onclick="changeFilterScope('all')" id="scope-all" class="scope-btn px-3 py-1.5 text-xs font-bold rounded-full">Total</button>
+                        </div>
+                    </div>
+
+                    <!-- Option Afficher / Masquer les tâches terminées -->
+                    <div class="flex items-center gap-2 mb-4 bg-white/20 p-3 border border-white/20 rounded-2xl">
+                        <input type="checkbox" id="toggle-show-closed-tasks" onchange="toggleClosedTasksFilter()" class="w-4.5 h-4.5 text-purple-600 border-slate-300 rounded focus:ring-purple-500 bg-slate-100" checked>
+                        <label for="toggle-show-closed-tasks" class="text-xs font-bold text-secondary">
+                            Afficher les données des tâches clôturées (historique archivé)
+                        </label>
+                    </div>
+
+                    <!-- Sélecteurs dynamiques de dates -->
+                    <div id="filter-inputs-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <!-- Rempli en JS -->
+                    </div>
+
+                    <!-- Tableau de bord Synthèse -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-white/20 border border-white/20 rounded-2xl p-4 text-center">
+                            <span class="block text-xs font-bold text-secondary uppercase tracking-wider">Durée totale</span>
+                            <span id="stats-total-time" class="text-2xl font-black text-primary">00h 00m</span>
+                        </div>
+                        <div class="bg-white/20 border border-white/20 rounded-2xl p-4 text-center">
+                            <span class="block text-xs font-bold text-secondary uppercase tracking-wider">Sessions</span>
+                            <span id="stats-session-count" class="text-2xl font-black text-primary">0</span>
+                        </div>
+                        <div class="bg-white/20 border border-white/20 rounded-2xl p-4 text-center">
+                            <span class="block text-xs font-bold text-secondary uppercase tracking-wider">Activité majeure</span>
+                            <span id="stats-active-count" class="text-base font-bold text-purple-700 block truncate">Aucune</span>
+                        </div>
+                    </div>
+
+                    <!-- Canvas Graphe -->
+                    <div class="h-64 relative mb-2" role="region" aria-label="Graphique de répartition du temps" tabindex="0">
+                        <canvas id="analyticsChart"></canvas>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- SECTION HISTORIQUE GLOBAL -->
+        <section class="liquid-glass rounded-3xl p-6 shadow-lg" aria-labelledby="history-section-title">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                <h2 id="history-section-title" class="text-lg font-bold flex items-center gap-2 text-primary uppercase tracking-wide">
+                    <i data-lucide="history" class="w-5 h-5" aria-hidden="true"></i> Journal d'Activité
+                </h2>
+                <button type="button" onclick="clearHistoryWithModal()" class="text-sm font-semibold flex items-center gap-1.5 text-rose-700 hover:underline">
+                    <i data-lucide="trash-2" class="w-4 h-4" aria-hidden="true"></i> Effacer l'historique
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-300/40 text-secondary text-xs font-bold uppercase tracking-wider bg-white/20">
+                            <th scope="col" class="py-3 px-4">Catégorie</th>
+                            <th scope="col" class="py-3 px-4">Sous-tâche</th>
+                            <th scope="col" class="py-3 px-4">Date & Heure</th>
+                            <th scope="col" class="py-3 px-4">Durée</th>
+                            <th scope="col" class="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body" class="text-sm divide-y divide-slate-200/30">
+                        <!-- Rempli en JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- MODAL ARBITRAGE : TRANS-CLARTÉ APPLE GLASSMOPHISM (VERT / ORANGE / ROUGE) -->
+    <div id="switch-task-modal" class="hidden fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="switch-modal-title">
+        <div class="modal-glass rounded-3xl p-6 w-full max-w-md relative text-primary border">
+            
+            <!-- Bouton fermer X -->
+            <button type="button" onclick="resolveSwitch('cancel')" class="btn-active absolute top-4 right-4 text-tertiary hover:text-primary" aria-label="Fermer la boîte de dialogue">
+                <i data-lucide="x" class="w-5 h-5" aria-hidden="true"></i>
+            </button>
+
+            <h3 id="switch-modal-title" class="text-lg font-bold uppercase text-center mb-4 text-purple-800 flex items-center justify-center gap-2">
+                <i data-lucide="git-compare" class="w-5 h-5"></i> Arbitrage de tâche
+            </h3>
+            
+            <p class="text-xs text-secondary text-center mb-6 leading-relaxed">
+                Le minuteur enregistre actuellement <strong id="switch-current-task-label" class="text-primary"></strong> (<span id="switch-current-duration-label" class="font-mono font-bold">00:00:00</span>).<br>
+                Vous avez sélectionné : <strong id="switch-new-task-label" class="text-primary"></strong>. Que voulez-vous faire ?
+            </p>
+            
+            <div class="flex flex-col gap-4">
+                
+                <!-- Action 1 : Commit & Start (Finir et démarrer) -->
+                <button type="button" onclick="resolveSwitch('commit')" class="card-nav btn-active flex items-center gap-4 w-full p-3 bg-white/30 border border-white/50 rounded-2xl text-left shadow-sm">
+                    <div class="relative flex items-center justify-center flex-shrink-0" style="width: 56px; height: 56px;">
+                        <!-- Play vert (34px, soit 60% de 56px) -->
+                        <div class="rounded-full flex items-center justify-center text-white bg-apple-green shadow-sm" style="width: 34px; height: 34px;">
+                            <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                        </div>
+                        <!-- Stop rouge (20px) en exposant à gauche sous play -->
+                        <div class="absolute rounded-full flex items-center justify-center text-white bg-apple-red border border-white shadow-sm" style="width: 20px; height: 20px; bottom: 4px; left: 4px;">
+                            <i data-lucide="square" class="w-2.5 h-2.5 fill-current"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="font-bold text-sm block">Finir et démarrer</span>
+                        <span class="text-xs text-tertiary">Enregistre l'activité en cours de façon définitive et commence la nouvelle de zéro.</span>
+                    </div>
+                </button>
+
+                <!-- Action 2 : Commit & Stop (Enregistrer et arrêter) - Bouton STOP rouge unitaire de taille maximale (56px) -->
+                <button type="button" onclick="resolveSwitch('stop_only')" class="card-nav btn-active flex items-center gap-4 w-full p-3 bg-white/30 border border-white/50 rounded-2xl text-left shadow-sm">
+                    <div class="flex items-center justify-center flex-shrink-0" style="width: 56px; height: 56px;">
+                        <div class="rounded-full flex items-center justify-center text-white bg-apple-red shadow-md" style="width: 56px; height: 56px;">
+                            <i data-lucide="square" class="w-6 h-6 fill-current"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="font-bold text-sm block">Enregistrer et arrêter</span>
+                        <span class="text-xs text-tertiary">Enregistre l'activité courante et stoppe le chronomètre.</span>
+                    </div>
+                </button>
+
+                <!-- Action 3 : Park & Start (Mettre en attente et démarrer) -->
+                <button type="button" onclick="resolveSwitch('park')" class="card-nav btn-active flex items-center gap-4 w-full p-3 bg-white/30 border border-white/50 rounded-2xl text-left shadow-sm">
+                    <div class="relative flex items-center justify-center flex-shrink-0" style="width: 56px; height: 56px;">
+                        <!-- Play vert (34px) -->
+                        <div class="rounded-full flex items-center justify-center text-white bg-apple-green shadow-sm" style="width: 34px; height: 34px;">
+                            <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                        </div>
+                        <!-- Pause orange (20px) en exposant à gauche sous play -->
+                        <div class="absolute rounded-full flex items-center justify-center text-white bg-apple-orange border border-white shadow-sm" style="width: 20px; height: 20px; bottom: 4px; left: 4px;">
+                            <i data-lucide="pause" class="w-2.5 h-2.5 fill-current"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="font-bold text-sm block">Mettre en attente</span>
+                        <span class="text-xs text-tertiary">Envoie la tâche courante en pause au garage et commence directement la nouvelle.</span>
+                    </div>
+                </button>
+            </div>
+            
+            <div class="mt-6">
+                <button type="button" onclick="resolveSwitch('cancel')" class="btn-active w-full py-3 bg-slate-200/50 hover:bg-slate-300/60 text-primary font-bold text-xs rounded-full">
+                    Décliner / Annuler
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL : REPRENDRE UNE TÂCHE EN ATTENTE -->
+    <div id="resume-suspended-modal" class="hidden fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="resume-suspended-title">
+        <div class="modal-glass rounded-3xl p-6 w-full max-w-md relative text-primary border">
+            <!-- Bouton fermer X -->
+            <button type="button" onclick="closeResumeSuspendedModal()" class="btn-active absolute top-4 right-4 text-tertiary hover:text-primary" aria-label="Fermer">
+                <i data-lucide="x" class="w-6 h-6" aria-hidden="true"></i>
+            </button>
+            <h3 id="resume-suspended-title" class="text-lg font-bold mb-3 text-purple-800 uppercase tracking-wide">Reprendre une tâche en pause ?</h3>
+            <p class="text-sm text-secondary mb-4 leading-relaxed font-semibold">
+                Vous avez des sessions d'activité actuellement suspendues dans le garage. Souhaitez-vous reprendre l'une d'entre elles directement ?
+            </p>
+            <div id="resume-modal-list" class="space-y-2.5 mb-6 max-h-48 overflow-y-auto">
+                <!-- Rempli en JS -->
+            </div>
+            <button type="button" onclick="closeResumeSuspendedModal()" class="btn-active w-full py-3 bg-slate-200/50 hover:bg-slate-300 text-primary text-xs font-bold rounded-full">
+                Faire une pause (ne rien reprendre)
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL : CRÉER UNE TACHE PREDÉFINIE -->
+    <div id="new-task-modal" class="hidden fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-glass rounded-3xl p-6 w-full max-w-md relative text-primary border">
+            <button type="button" onclick="closeNewTaskModal()" class="btn-active absolute top-4 right-4 text-tertiary hover:text-primary" aria-label="Fermer la boîte de dialogue">
+                <i data-lucide="x" class="w-6 h-6" aria-hidden="true"></i>
+            </button>
+            <h3 id="modal-title" class="text-lg font-bold mb-4 text-purple-800 uppercase tracking-wide">Ajouter une tâche prédéfinie</h3>
+            
+            <form onsubmit="handleNewTaskSubmit(event)" class="space-y-4">
+                <div>
+                    <label for="new-task-category" class="block text-sm font-bold text-secondary mb-1.5">Catégorie (ex: Intranet, Réunion)</label>
+                    <input type="text" id="new-task-category" oninput="handleAutocompleteInput(event, 'category')" list="category-autocomplete" placeholder="ex: Intranet" class="w-full bg-white/50 text-primary border border-slate-300/60 p-3 rounded-2xl focus:ring-2 focus:ring-purple-600" required autocomplete="off">
+                </div>
+                <div>
+                    <label for="new-task-subtask" class="block text-sm font-bold text-secondary mb-1.5">Sous-tâche (ex: DSI, Équipe)</label>
+                    <input type="text" id="new-task-subtask" oninput="handleAutocompleteInput(event, 'subtask')" list="subtask-autocomplete" placeholder="ex: Direction Juridique" class="w-full bg-white/50 text-primary border border-slate-300/60 p-3 rounded-2xl focus:ring-2 focus:ring-purple-600" required autocomplete="off">
+                </div>
+                <button type="submit" class="btn-active w-full py-3 bg-purple-700 text-white font-bold rounded-full shadow-md">
+                    Ajouter à la liste
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL : RENOMMER UNE TACHE PREDÉFINIE -->
+    <div id="rename-task-modal" class="hidden fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="rename-modal-title">
+        <div class="modal-glass rounded-3xl p-6 w-full max-w-md relative text-primary border">
+            <button type="button" onclick="closeRenameTaskModal()" class="btn-active absolute top-4 right-4 text-tertiary hover:text-primary" aria-label="Fermer la boîte de dialogue">
+                <i data-lucide="x" class="w-6 h-6" aria-hidden="true"></i>
+            </button>
+            <h3 id="rename-modal-title" class="text-lg font-bold mb-2 text-purple-800 font-extrabold uppercase tracking-wide">Renommer la tâche</h3>
+            <p class="text-xs text-tertiary mb-4">Le changement mettra à jour l'ensemble de votre historique pour cette tâche.</p>
+            
+            <form onsubmit="handleRenameTaskSubmit(event)" class="space-y-4">
+                <input type="hidden" id="rename-old-category">
+                <input type="hidden" id="rename-old-subtask">
+                <div>
+                    <label for="rename-task-category" class="block text-sm font-bold text-secondary mb-1.5">Nouvelle Catégorie</label>
+                    <input type="text" id="rename-task-category" oninput="handleAutocompleteInput(event, 'category')" list="category-autocomplete" class="w-full bg-white/50 text-primary border border-slate-300/60 p-3 rounded-2xl focus:ring-2 focus:ring-purple-600" required autocomplete="off">
+                </div>
+                <div>
+                    <label for="rename-task-subtask" class="block text-sm font-bold text-secondary mb-1.5">Nouvelle Sous-tâche</label>
+                    <input type="text" id="rename-task-subtask" oninput="handleAutocompleteInput(event, 'subtask')" list="subtask-autocomplete" class="w-full bg-white/50 text-primary border border-slate-300/60 p-3 rounded-2xl focus:ring-2 focus:ring-purple-600" required autocomplete="off">
+                </div>
+                <button type="submit" class="btn-active w-full py-3 bg-purple-700 text-white font-bold rounded-full shadow-md">
+                    Enregistrer les modifications
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL : GESTION DES DOUBLONS D'IMPORT -->
+    <div id="import-conflict-modal" class="hidden fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
+        <div class="modal-glass rounded-3xl p-6 w-full max-w-lg relative text-primary border">
+            <!-- Bouton fermer X -->
+            <button type="button" onclick="closeImportConflictModal()" class="btn-active absolute top-4 right-4 text-tertiary hover:text-primary" aria-label="Fermer la boîte de dialogue">
+                <i data-lucide="x" class="w-6 h-6" aria-hidden="true"></i>
+            </button>
+            <h3 id="conflict-title" class="text-lg font-bold mb-2 text-amber-700 flex items-center gap-2 uppercase tracking-wide">
+                <i data-lucide="alert-triangle" class="w-6 h-6" aria-hidden="true"></i> Conflit de doublons détecté
+            </h3>
+            <p class="text-secondary text-sm mb-4 leading-relaxed font-semibold">
+                Le fichier importé contient des sessions qui correspondent à des entrées déjà enregistrées à la même heure. Comment souhaitez-vous gérer ces doublons ?
+            </p>
+            
+            <div class="max-h-48 overflow-y-auto mb-6 bg-white/40 border border-slate-200 rounded-2xl p-3 space-y-2 text-xs" tabindex="0" aria-label="Liste des doublons détectés">
+                <span class="font-bold text-secondary uppercase tracking-wider block">Sessions conflictuelles :</span>
+                <div id="import-conflict-list" class="space-y-2 text-primary">
+                    <!-- Rempli en JS -->
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <button type="button" onclick="resolveAllConflicts('skip')" class="btn-active py-2.5 bg-slate-200 text-primary text-xs font-bold rounded-full">
+                    Passer (Ignorer)
+                </button>
+                <button type="button" onclick="resolveAllConflicts('merge')" class="btn-active py-2.5 bg-apple-blue text-white text-xs font-bold rounded-full">
+                    Cumuler
+                </button>
+                <button type="button" onclick="resolveAllConflicts('overwrite')" class="btn-active py-2.5 bg-apple-orange text-white text-xs font-bold rounded-full">
+                    Écraser
+                </button>
+                <button type="button" onclick="closeImportConflictModal()" class="btn-active py-2.5 bg-slate-100 text-primary text-xs font-bold rounded-full">
+                    Annuler
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SYSTEME CENTRAL DE MODALES D'ALERTE ET DE CONFIRMATION (Sans alert/confirm natifs) -->
+    <div id="app-dialog-modal" class="hidden fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+        <div class="modal-glass rounded-3xl p-6 w-full max-w-sm relative text-primary border">
+            <!-- Bouton fermer X -->
+            <button type="button" onclick="closeCustomDialog()" class="btn-active absolute top-4 right-4 text-tertiary hover:text-primary" aria-label="Fermer">
+                <i data-lucide="x" class="w-5 h-5" aria-hidden="true"></i>
+            </button>
+            <h3 id="dialog-title" class="text-lg font-extrabold text-purple-800 mb-2 uppercase tracking-wide"></h3>
+            <p id="dialog-message" class="text-sm text-secondary mb-6 leading-relaxed font-semibold"></p>
+            <div id="dialog-actions" class="flex justify-end gap-2.5">
+                <!-- Rempli dynamiquement -->
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIQUE JAVASCRIPT CORRIGÉE (LIGHT MODE EXCLUSIF) -->
+    <script>
+        // --- BASE DE DONNÉES INITIALE ---
+        const DEFAULT_TASKS = [
+            { category: "Intranet", subtask: "Direction Juridique" },
+            { category: "Intranet", subtask: "DSI" },
+            { category: "Réunion", subtask: "Individuel" },
+            { category: "Réunion", subtask: "Équipe" },
+            { category: "Traitement des emails", subtask: "Standard" },
+            { category: "Veille", subtask: "Technologique" }
+        ];
+
+        const KEYS = {
+            tasks: 'imp_tasks_hierarchical',
+            sessions: 'imp_sessions_hierarchical',
+            suspended: 'imp_suspended_sessions',
+            filterScope: 'imp_filter_scope',
+            showClosed: 'imp_show_closed_tasks',
+            driveFileId: 'imp_drive_file_id'
+        };
+
+        // --- CONFIGURATION GOOGLE DRIVE ---
+        // 1. Créez un ID client OAuth sur https://console.cloud.google.com/apis/credentials
+        //    (type "Application Web", origine JavaScript autorisée = l'URL où cette page est hébergée)
+        // 2. Activez l'API Google Drive sur le projet.
+        // 3. Collez votre Client ID ci-dessous.
+        const DRIVE_CONFIG = {
+            CLIENT_ID: '538571515244-7arhb036ih5oqpgu57osu5f39aqfv4v0.apps.googleusercontent.com', // <-- À REMPLACER
+            FOLDER_ID: '1KYIif5g6TKnorrNn9tMDorWXb_NAyV4O', // Dossier Drive partagé fourni par l'utilisateur
+            FILE_NAME: 'impact_database.json',
+            SCOPES: 'https://www.googleapis.com/auth/drive'
+        };
+
+        let driveTokenClient = null;
+        let driveAccessToken = null;
+        let driveTokenExpiresAt = 0;
+        let driveFileId = localStorage.getItem(KEYS.driveFileId) || null;
+        let driveSyncTimeout = null;
+        let driveSyncInFlight = false;
+
+        function getLocalStorageData(key, fallbackValue) {
+            try {
+                const raw = localStorage.getItem(key);
+                if (!raw) return fallbackValue;
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(item => {
+                        if (typeof item === 'string') {
+                            return { category: "Général", subtask: item };
+                        }
+                        if (item && typeof item === 'object') {
+                            return {
+                                category: item.category || "Général",
+                                subtask: item.subtask || item.taskName || "Standard",
+                                id: item.id || 'id_' + Math.random().toString(36).substr(2, 5),
+                                duration: item.duration || item.elapsedTime || 0,
+                                startTime: item.startTime || new Date().toISOString(),
+                                endTime: item.endTime || new Date().toISOString(),
+                                elapsedTime: item.elapsedTime || item.duration || 0
+                            };
+                        }
+                        return null;
+                    }).filter(Boolean);
+                }
+                return parsed;
+            } catch (e) {
+                return fallbackValue;
+            }
+        }
+
+        let state = {
+            tasks: getLocalStorageData(KEYS.tasks, [...DEFAULT_TASKS]),
+            sessions: getLocalStorageData(KEYS.sessions, []),
+            suspendedSessions: getLocalStorageData(KEYS.suspended, []), 
+            currentFilterScope: localStorage.getItem(KEYS.filterScope) || 'day',
+            showClosedTasks: JSON.parse(localStorage.getItem(KEYS.showClosed)) !== false, 
+            
+            // État du minuteur principal
+            timer: {
+                intervalId: null,
+                startTime: null,
+                elapsedTime: 0, 
+                paused: true,
+                category: "",
+                subtask: "",
+                notified1h: false,
+                notified2h: false
+            },
+            pendingImport: []
+        };
+
+        let pendingCategory = "";
+        let pendingSubtask = "";
+        let isRevertingDropdown = false; 
+        let myChart = null;
+
+        // --- GESTIONNAIRE DE MODALES D'ALERTES ET DE CONFIRMATIONS (Sans alert/confirm natifs) ---
+        function showCustomAlert(title, message) {
+            document.getElementById('dialog-title').innerText = title;
+            document.getElementById('dialog-message').innerText = message;
+            
+            const actions = document.getElementById('dialog-actions');
+            actions.innerHTML = `
+                <button type="button" onclick="closeCustomDialog()" class="btn-active px-5 py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-full">
+                    D'accord
+                </button>
+            `;
+            document.getElementById('app-dialog-modal').classList.remove('hidden');
+        }
+
+        function showCustomConfirm(title, message, onConfirm) {
+            document.getElementById('dialog-title').innerText = title;
+            document.getElementById('dialog-message').innerText = message;
+            
+            const actions = document.getElementById('dialog-actions');
+            actions.innerHTML = `
+                <button type="button" onclick="closeCustomDialog()" class="btn-active px-4 py-2.5 bg-slate-200/60 hover:bg-slate-300/60 text-primary font-bold text-xs rounded-full">
+                    Annuler
+                </button>
+                <button type="button" id="confirm-dialog-btn" class="btn-active px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-full">
+                    Confirmer
+                </button>
+            `;
+            
+            document.getElementById('confirm-dialog-btn').onclick = () => {
+                closeCustomDialog();
+                onConfirm();
+            };
+            
+            document.getElementById('app-dialog-modal').classList.remove('hidden');
+        }
+
+        function closeCustomDialog() {
+            document.getElementById('app-dialog-modal').classList.add('hidden');
+        }
+
+        // ================================================================
+        // --- INTÉGRATION GOOGLE DRIVE (Authentification + Synchronisation) ---
+        // ================================================================
+
+        function initGoogleAuth() {
+            if (typeof google === 'undefined' || !google.accounts) {
+                setTimeout(initGoogleAuth, 300);
+                return;
+            }
+            if (DRIVE_CONFIG.CLIENT_ID === 'VOTRE_CLIENT_ID.apps.googleusercontent.com') {
+                return; // Pas encore configuré
+            }
+            driveTokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: DRIVE_CONFIG.CLIENT_ID,
+                scope: DRIVE_CONFIG.SCOPES,
+                callback: handleDriveAuthResponse
+            });
+        }
+
+        function handleDriveStatusClick() {
+            if (DRIVE_CONFIG.CLIENT_ID === 'VOTRE_CLIENT_ID.apps.googleusercontent.com') {
+                showCustomAlert(
+                    "Configuration requise",
+                    "L'accès à Google Drive n'est pas encore configuré. Il faut renseigner un Client ID OAuth Google (voir le commentaire DRIVE_CONFIG en haut du script) et héberger cette page sur une URL http(s), pas en fichier local."
+                );
+                return;
+            }
+            if (driveAccessToken && Date.now() < driveTokenExpiresAt) {
+                showCustomConfirm(
+                    "Google Drive connecté",
+                    "Voulez-vous forcer une synchronisation immédiate avec le fichier de données sur Drive ?",
+                    () => { loadStateFromDrive(); }
+                );
+                return;
+            }
+            connectGoogleDrive();
+        }
+
+        function connectGoogleDrive() {
+            if (!driveTokenClient) {
+                initGoogleAuth();
+                showCustomAlert("Initialisation", "Le service Google est en cours de chargement, veuillez réessayer dans un instant.");
+                return;
+            }
+            setDriveStatusUI('connecting');
+            driveTokenClient.requestAccessToken({ prompt: driveAccessToken ? '' : 'consent' });
+        }
+
+        function handleDriveAuthResponse(tokenResponse) {
+            if (tokenResponse.error) {
+                setDriveStatusUI('error');
+                showCustomAlert("Connexion refusée", "L'autorisation d'accès à Google Drive a échoué ou a été refusée.");
+                return;
+            }
+            driveAccessToken = tokenResponse.access_token;
+            driveTokenExpiresAt = Date.now() + (tokenResponse.expires_in * 1000) - 60000; // marge de 60s
+            setDriveStatusUI('connected');
+            initialDriveSync();
+        }
+
+        function disconnectGoogleDrive() {
+            if (driveAccessToken && google.accounts.oauth2.revoke) {
+                google.accounts.oauth2.revoke(driveAccessToken, () => {});
+            }
+            driveAccessToken = null;
+            driveTokenExpiresAt = 0;
+            setDriveStatusUI('disconnected');
+        }
+
+        function setDriveStatusUI(mode) {
+            const btn = document.getElementById('drive-status-btn');
+            const icon = document.getElementById('drive-status-icon');
+            const label = document.getElementById('drive-status-label');
+            if (!btn) return;
+
+            const states = {
+                disconnected: { iconName: 'cloud-off', iconClass: 'text-slate-500', text: 'Connecter Google Drive' },
+                connecting:   { iconName: 'loader',    iconClass: 'text-apple-blue animate-spin', text: 'Connexion en cours…' },
+                connected:    { iconName: 'cloud',     iconClass: 'text-apple-green', text: 'Google Drive connecté' },
+                syncing:      { iconName: 'refresh-cw', iconClass: 'text-apple-blue animate-spin', text: 'Synchronisation…' },
+                error:        { iconName: 'alert-triangle', iconClass: 'text-apple-red', text: 'Erreur de synchronisation' }
+            };
+            const s = states[mode] || states.disconnected;
+            icon.setAttribute('data-lucide', s.iconName);
+            icon.className = `w-4 h-4 ${s.iconClass}`;
+            label.innerText = s.text;
+            lucide.createIcons();
+        }
+
+        // --- Requête générique vers l'API Drive avec gestion du token expiré ---
+        async function driveApiFetch(url, options = {}) {
+            if (!driveAccessToken || Date.now() >= driveTokenExpiresAt) {
+                await refreshDriveTokenSilently();
+            }
+            const res = await fetch(url, {
+                ...options,
+                headers: {
+                    ...(options.headers || {}),
+                    'Authorization': `Bearer ${driveAccessToken}`
+                }
+            });
+            if (res.status === 401) {
+                await refreshDriveTokenSilently();
+                return fetch(url, {
+                    ...options,
+                    headers: { ...(options.headers || {}), 'Authorization': `Bearer ${driveAccessToken}` }
+                });
+            }
+            return res;
+        }
+
+        function refreshDriveTokenSilently() {
+            return new Promise((resolve) => {
+                if (!driveTokenClient) { resolve(); return; }
+                driveTokenClient.callback = (tokenResponse) => {
+                    if (!tokenResponse.error) {
+                        driveAccessToken = tokenResponse.access_token;
+                        driveTokenExpiresAt = Date.now() + (tokenResponse.expires_in * 1000) - 60000;
+                    }
+                    driveTokenClient.callback = handleDriveAuthResponse; // restaure le callback normal
+                    resolve();
+                };
+                driveTokenClient.requestAccessToken({ prompt: '' });
+            });
+        }
+
+        // --- Trouve (ou crée) le fichier JSON de données dans le dossier Drive cible ---
+        async function findOrCreateDriveFile() {
+            if (driveFileId) return driveFileId;
+
+            const q = encodeURIComponent(`name='${DRIVE_CONFIG.FILE_NAME}' and '${DRIVE_CONFIG.FOLDER_ID}' in parents and trashed=false`);
+            const listRes = await driveApiFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`);
+            const listData = await listRes.json();
+
+            if (listData.files && listData.files.length > 0) {
+                driveFileId = listData.files[0].id;
+                localStorage.setItem(KEYS.driveFileId, driveFileId);
+                return driveFileId;
+            }
+
+            // Aucun fichier existant : on le crée avec l'état actuel
+            const initialContent = JSON.stringify({
+                tasks: state.tasks,
+                sessions: state.sessions,
+                suspendedSessions: state.suspendedSessions
+            });
+
+            const metadata = { name: DRIVE_CONFIG.FILE_NAME, parents: [DRIVE_CONFIG.FOLDER_ID], mimeType: 'application/json' };
+            const boundary = 'impact_boundary_' + Date.now();
+            const body =
+                `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+                `--${boundary}\r\nContent-Type: application/json\r\n\r\n${initialContent}\r\n` +
+                `--${boundary}--`;
+
+            const createRes = await driveApiFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+                method: 'POST',
+                headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+                body
+            });
+            const createData = await createRes.json();
+            driveFileId = createData.id;
+            localStorage.setItem(KEYS.driveFileId, driveFileId);
+            return driveFileId;
+        }
+
+        async function initialDriveSync() {
+            try {
+                setDriveStatusUI('syncing');
+                await findOrCreateDriveFile();
+                await loadStateFromDrive();
+            } catch (err) {
+                setDriveStatusUI('error');
+                showCustomAlert("Synchronisation impossible", "La connexion au dossier Google Drive a échoué. Vérifiez que le dossier vous est accessible et réessayez.");
+            }
+        }
+
+        async function loadStateFromDrive() {
+            try {
+                setDriveStatusUI('syncing');
+                const id = await findOrCreateDriveFile();
+                const res = await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
+                if (!res.ok) throw new Error('Lecture Drive échouée');
+                const remote = await res.json();
+
+                state.tasks = remote.tasks || state.tasks;
+                state.sessions = remote.sessions || state.sessions;
+                state.suspendedSessions = remote.suspendedSessions || state.suspendedSessions;
+
+                refreshUI();
+                setDriveStatusUI('connected');
+            } catch (err) {
+                setDriveStatusUI('error');
+            }
+        }
+
+        // --- Sauvegarde différée (anti-spam) vers Drive : regroupe les écritures rapprochées ---
+        function scheduleDriveSync() {
+            if (!driveAccessToken) return; // pas connecté : on reste en local uniquement
+            clearTimeout(driveSyncTimeout);
+            driveSyncTimeout = setTimeout(saveStateToDrive, 1800);
+        }
+
+        async function saveStateToDrive() {
+            if (!driveAccessToken || driveSyncInFlight) return;
+            driveSyncInFlight = true;
+            try {
+                setDriveStatusUI('syncing');
+                const id = await findOrCreateDriveFile();
+                const content = JSON.stringify({
+                    tasks: state.tasks,
+                    sessions: state.sessions,
+                    suspendedSessions: state.suspendedSessions
+                });
+
+                const res = await driveApiFetch(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: content
+                });
+
+                if (!res.ok) throw new Error('Écriture Drive échouée');
+                setDriveStatusUI('connected');
+            } catch (err) {
+                setDriveStatusUI('error');
+            } finally {
+                driveSyncInFlight = false;
+            }
+        }
+
+        // --- DÉMARRAGE ---
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initFilters();
+            initGoogleAuth();
+            
+            document.getElementById('toggle-show-closed-tasks').checked = state.showClosedTasks;
+
+            refreshUI();
+            
+            // Écoute de la touche Échap pour fermer les modals
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeNewTaskModal();
+                    closeRenameTaskModal();
+                    closeResumeSuspendedModal();
+                    closeImportConflictModal();
+                    resolveSwitch('cancel');
+                }
+            });
+
+            // Sécurité anti-fermeture
+            window.addEventListener('beforeunload', (e) => {
+                if (state.sessions.length > 0 || state.suspendedSessions.length > 0) {
+                    e.preventDefault();
+                    e.returnValue = "Pensez à sauvegarder vos tâches avant de fermer.";
+                    return e.returnValue;
+                }
+            });
+
+            document.getElementById('manual-date').value = new Date().toISOString().split('T')[0];
+
+            // --- REPRISE AUTO AU DÉMARRAGE SI SESSIONS AU GARAGE ---
+            if (state.suspendedSessions.length > 0) {
+                setTimeout(openResumeSuspendedModal, 600);
+            }
+        });
+
+        // --- GESTION DES NOTIFICATIONS SYSTEME ---
+        function requestNotificationPermission() {
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission();
+            }
+        }
+
+        function triggerSystemNotification(title, message) {
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, {
+                    body: message,
+                    icon: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%237e22ce" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+                });
+            } else {
+                showCustomAlert(title, message);
+            }
+        }
+
+        // --- TRI ALPHABÉTIQUE GLOBAL DES SESSIONS ET DES TACHES ---
+        function sortAlphabetically() {
+            state.tasks.sort((a, b) => {
+                const catA = a.category || "";
+                const catB = b.category || "";
+                const subA = a.subtask || "";
+                const subB = b.subtask || "";
+                const catCompare = catA.localeCompare(catB, 'fr', { sensitivity: 'base' });
+                if (catCompare !== 0) return catCompare;
+                return subA.localeCompare(subB, 'fr', { sensitivity: 'base' });
+            });
+
+            state.suspendedSessions.sort((a, b) => {
+                const catA = a.category || "";
+                const catB = b.category || "";
+                const subA = a.subtask || "";
+                const subB = b.subtask || "";
+                const catCompare = catA.localeCompare(catB, 'fr', { sensitivity: 'base' });
+                if (catCompare !== 0) return catCompare;
+                return subA.localeCompare(subB, 'fr', { sensitivity: 'base' });
+            });
+        }
+
+        // --- AUTOCOMPLÉTION DYNAMIQUE (DÈS 3 LETTRES) ---
+        function handleAutocompleteInput(event, fieldType) {
+            const query = event.target.value.trim();
+            const targetDatalistId = fieldType === 'category' ? 'category-autocomplete' : 'subtask-autocomplete';
+            const datalist = document.getElementById(targetDatalistId);
+
+            if (query.length < 3) {
+                datalist.innerHTML = "";
+                return;
+            }
+
+            const suggestions = new Set();
+
+            state.tasks.forEach(t => {
+                const val = fieldType === 'category' ? t.category : t.subtask;
+                if (val && val.toLowerCase().includes(query.toLowerCase())) {
+                    suggestions.add(val);
+                }
+            });
+
+            state.sessions.forEach(s => {
+                const val = fieldType === 'category' ? s.category : s.subtask;
+                if (val && val.toLowerCase().includes(query.toLowerCase())) {
+                    suggestions.add(val);
+                }
+            });
+
+            const sortedSuggestions = Array.from(suggestions).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+            datalist.innerHTML = sortedSuggestions.map(val => `<option value="${escapeHTML(val)}">`).join('');
+        }
+
+        // --- RE-RENDU CENTRAL DE L'INTERFACE ---
+        function refreshUI() {
+            sortAlphabetically();
+            saveState();
+            populateTaskDropdowns();
+            renderTasksList();
+            renderSuspendedSessions();
+            renderHistoryTable();
+            calculateAndRenderStats();
+            updateSaveReminderBanner();
+            lucide.createIcons();
+        }
+
+        function saveState() {
+            localStorage.setItem(KEYS.tasks, JSON.stringify(state.tasks));
+            localStorage.setItem(KEYS.sessions, JSON.stringify(state.sessions));
+            localStorage.setItem(KEYS.suspended, JSON.stringify(state.suspendedSessions));
+            localStorage.setItem(KEYS.showClosed, JSON.stringify(state.showClosedTasks));
+            scheduleDriveSync();
+        }
+
+        function updateSaveReminderBanner() {
+            const banner = document.getElementById('save-reminder-banner');
+            if (state.sessions.length > 0 || state.suspendedSessions.length > 0) {
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
+        function populateTaskDropdowns() {
+            const timerSelect = document.getElementById('timer-task-select');
+            const manualSelect = document.getElementById('manual-task-select');
+            
+            const grouped = {};
+            state.tasks.forEach(t => {
+                if (!grouped[t.category]) grouped[t.category] = [];
+                grouped[t.category].push(t.subtask);
+            });
+
+            const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+            let optionsHTML = '<option value="" disabled selected>-- Choisir une tâche active --</option>';
+            for (const category of sortedCategories) {
+                const sortedSubtasks = grouped[category].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+                optionsHTML += `<optgroup label="${escapeHTML(category)}">`;
+                sortedSubtasks.forEach(sub => {
+                    const valStr = `${category} / ${sub}`;
+                    optionsHTML += `<option value="${escapeHTML(valStr)}">${escapeHTML(sub)}</option>`;
+                });
+                optionsHTML += `</optgroup>`;
+            }
+
+            // Restauration de l'affichage du menu déroulant
+            const currentSelected = timerSelect.value || (state.timer.category ? `${state.timer.category} / ${state.timer.subtask}` : "");
+            
+            timerSelect.innerHTML = optionsHTML;
+            isRevertingDropdown = true;
+            if (currentSelected) {
+                timerSelect.value = currentSelected;
+            } else {
+                timerSelect.value = "";
+            }
+            isRevertingDropdown = false;
+            
+            manualSelect.innerHTML = optionsHTML;
+        }
+
+        // --- MINUTEUR EN TEMPS RÉEL ---
+        function startTimer() {
+            requestNotificationPermission();
+
+            const selectEl = document.getElementById('timer-task-select');
+            if (!selectEl.value) {
+                showCustomAlert("Attention", "Veuillez d'abord sélectionner une tâche active dans la liste déroulante.");
+                return;
+            }
+
+            if (state.timer.paused) {
+                const [cat, sub] = selectEl.value.split(' / ');
+                state.timer.paused = false;
+                state.timer.category = cat;
+                state.timer.subtask = sub;
+                state.timer.startTime = Date.now() - (state.timer.elapsedTime * 1000);
+                
+                state.timer.intervalId = setInterval(() => {
+                    state.timer.elapsedTime = Math.floor((Date.now() - state.timer.startTime) / 1000);
+                    updateTimerDisplay();
+                    checkTimeThresholds();
+                }, 1000);
+
+                // UI
+                document.getElementById('btn-start').classList.add('hidden');
+                document.getElementById('btn-pause').classList.remove('hidden');
+                document.getElementById('btn-stop').classList.remove('opacity-50', 'cursor-not-allowed');
+                document.getElementById('btn-stop').disabled = false;
+                document.getElementById('current-running-task').innerText = `En cours : ${cat} / ${sub}`;
+                selectEl.disabled = false; 
+            }
+        }
+
+        function handleTimerTaskChange() {
+            if (isRevertingDropdown) return;
+
+            const selectEl = document.getElementById('timer-task-select');
+            if (!selectEl.value) return;
+
+            const [newCat, newSub] = selectEl.value.split(' / ');
+
+            if (state.timer.paused === false) {
+                if (state.timer.category !== newCat || state.timer.subtask !== newSub) {
+                    pendingCategory = newCat;
+                    pendingSubtask = newSub;
+
+                    document.getElementById('switch-current-task-label').innerText = `${state.timer.category} / ${state.timer.subtask}`;
+                    document.getElementById('switch-new-task-label').innerText = `${newCat} / ${newSub}`;
+                    updateSwitchDurationDisplay();
+                    
+                    document.getElementById('switch-task-modal').classList.remove('hidden');
+                    return;
+                }
+            }
+
+            const existingSuspended = state.suspendedSessions.find(s => s.category === newCat && s.subtask === newSub);
+            if (existingSuspended) {
+                state.timer.category = newCat;
+                state.timer.subtask = newSub;
+                state.timer.elapsedTime = existingSuspended.elapsedTime;
+                state.suspendedSessions = state.suspendedSessions.filter(s => s.id !== existingSuspended.id);
+            } else {
+                state.timer.category = newCat;
+                state.timer.subtask = newSub;
+                state.timer.elapsedTime = 0;
+            }
+            
+            document.getElementById('current-running-task').innerText = `Sélectionné : ${newCat} / ${newSub}`;
+            updateTimerDisplay();
+            refreshUI();
+        }
+
+        function updateSwitchDurationDisplay() {
+            const h = Math.floor(state.timer.elapsedTime / 3600).toString().padStart(2, '0');
+            const m = Math.floor((state.timer.elapsedTime % 3600) / 60).toString().padStart(2, '0');
+            const s = (state.timer.elapsedTime % 60).toString().padStart(2, '0');
+            document.getElementById('switch-current-duration-label').innerText = `${h}:${m}:${s}`;
+        }
+
+        // --- ARBITRAGE MODALE DE CHANGEMENT DE TÂCHE (FLUX iOS) ---
+        function resolveSwitch(action) {
+            document.getElementById('switch-task-modal').classList.add('hidden');
+            
+            const nextCat = pendingCategory;
+            const nextSub = pendingSubtask;
+
+            if (action === 'park') {
+                parkRunningSession();
+                isRevertingDropdown = true;
+                document.getElementById('timer-task-select').value = `${nextCat} / ${nextSub}`;
+                isRevertingDropdown = false;
+                
+                const existingSuspended = state.suspendedSessions.find(s => s.category === nextCat && s.subtask === nextSub);
+                if (existingSuspended) {
+                    state.timer.category = nextCat;
+                    state.timer.subtask = nextSub;
+                    state.timer.elapsedTime = existingSuspended.elapsedTime;
+                    state.suspendedSessions = state.suspendedSessions.filter(s => s.id !== existingSuspended.id);
+                } else {
+                    state.timer.category = nextCat;
+                    state.timer.subtask = nextSub;
+                    state.timer.elapsedTime = 0;
+                }
+                
+                state.timer.paused = true;
+                startTimer();
+                refreshUI();
+
+            } else if (action === 'commit') {
+                const elapsed = state.timer.elapsedTime;
+                const cat = state.timer.category;
+                const sub = state.timer.subtask;
+                const start = state.timer.startTime;
+
+                if (elapsed >= 2) {
+                    const newSession = {
+                        id: 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        category: cat,
+                        subtask: sub,
+                        startTime: new Date(start).toISOString(),
+                        endTime: new Date().toISOString(),
+                        duration: elapsed
+                    };
+                    state.sessions.unshift(newSession);
+                }
+
+                resetTimerWithoutRevert();
+                isRevertingDropdown = true;
+                document.getElementById('timer-task-select').value = `${nextCat} / ${nextSub}`;
+                isRevertingDropdown = false;
+
+                const existingSuspended = state.suspendedSessions.find(s => s.category === nextCat && s.subtask === nextSub);
+                if (existingSuspended) {
+                    state.timer.category = nextCat;
+                    state.timer.subtask = nextSub;
+                    state.timer.elapsedTime = existingSuspended.elapsedTime;
+                    state.suspendedSessions = state.suspendedSessions.filter(s => s.id !== existingSuspended.id);
+                } else {
+                    state.timer.category = nextCat;
+                    state.timer.subtask = nextSub;
+                    state.timer.elapsedTime = 0;
+                }
+
+                state.timer.paused = true;
+                startTimer();
+                refreshUI();
+
+            } else if (action === 'stop_only') {
+                stopTimer();
+
+            } else {
+                isRevertingDropdown = true;
+                document.getElementById('timer-task-select').value = `${state.timer.category} / ${state.timer.subtask}`;
+                isRevertingDropdown = false;
+            }
+
+            pendingCategory = "";
+            pendingSubtask = "";
+        }
+
+        function checkTimeThresholds() {
+            const time = state.timer.elapsedTime;
+            const taskLabel = `${state.timer.category} / ${state.timer.subtask}`;
+
+            if (time >= 3600 && !state.timer.notified1h) {
+                state.timer.notified1h = true;
+                triggerSystemNotification(
+                    "Changer de tâche ?", 
+                    `Vous travaillez sur la tâche "${taskLabel}" depuis plus d'une heure.`
+                );
+            }
+
+            if (time >= 7200 && !state.timer.notified2h) {
+                state.timer.notified2h = true;
+                triggerSystemNotification(
+                    "Changer de tâche ?", 
+                    `Limite de 2h atteinte sur la tâche "${taskLabel}". Le minuteur a été mis en pause.`
+                );
+                pauseTimer();
+            }
+        }
+
+        // Le bouton Pause envoie directement la tâche active au garage
+        function pauseTimer() {
+            if (!state.timer.paused) {
+                parkRunningSession();
+                resetTimerUI();
+                refreshUI();
+            }
+        }
+
+        function stopTimer() {
+            if (state.timer.elapsedTime < 2) {
+                showCustomConfirm(
+                    "Session très courte", 
+                    "La session fait moins de 2 secondes. Voulez-vous vraiment l'enregistrer ?", 
+                    () => {
+                        saveSessionAndFinish();
+                    }
+                );
+                return;
+            }
+            saveSessionAndFinish();
+        }
+
+        function saveSessionAndFinish() {
+            const newSession = {
+                id: 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                category: state.timer.category,
+                subtask: state.timer.subtask,
+                startTime: new Date(state.timer.startTime).toISOString(),
+                endTime: new Date().toISOString(),
+                duration: state.timer.elapsedTime
+            };
+
+            state.sessions.unshift(newSession);
+            resetTimerUI();
+            refreshUI();
+
+            if (state.suspendedSessions.length > 0) {
+                setTimeout(openResumeSuspendedModal, 300);
+            }
+        }
+
+        function parkRunningSession() {
+            if (state.timer.elapsedTime >= 2) {
+                const parkedSession = {
+                    id: 'park_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    category: state.timer.category,
+                    subtask: state.timer.subtask,
+                    elapsedTime: state.timer.elapsedTime,
+                    lastSuspended: new Date().toISOString()
+                };
+                state.suspendedSessions.unshift(parkedSession);
+            }
+            clearInterval(state.timer.intervalId);
+            state.timer.elapsedTime = 0;
+            state.timer.paused = true;
+            state.timer.notified1h = false;
+            state.timer.notified2h = false;
+        }
+
+        function cancelTimer() {
+            if (state.timer.elapsedTime === 0) {
+                showCustomAlert("Action impossible", "Aucune session active n'est en cours.");
+                return;
+            }
+
+            showCustomConfirm(
+                "Annuler la session", 
+                "Êtes-vous sûr de vouloir annuler la session en cours ? Le temps accumulé sera définitivement perdu.", 
+                () => {
+                    resetTimerUI();
+                    refreshUI();
+                }
+            );
+        }
+
+        function resetTimerWithoutRevert() {
+            clearInterval(state.timer.intervalId);
+            state.timer.intervalId = null;
+            state.timer.startTime = null;
+            state.timer.elapsedTime = 0;
+            state.timer.paused = true;
+            state.timer.category = "";
+            state.timer.subtask = "";
+            state.timer.notified1h = false;
+            state.timer.notified2h = false;
+        }
+
+        function resetTimerUI() {
+            resetTimerWithoutRevert();
+
+            document.getElementById('timer-display').innerText = "00:00:00";
+            document.title = "ImpAct - Time Tracker";
+            document.getElementById('current-running-task').innerText = "Aucun suivi en cours";
+            
+            document.getElementById('btn-start').classList.remove('hidden');
+            document.getElementById('btn-pause').classList.add('hidden');
+            document.getElementById('btn-stop').classList.add('opacity-50', 'cursor-not-allowed');
+            document.getElementById('btn-stop').disabled = true;
+            
+            isRevertingDropdown = true;
+            document.getElementById('timer-task-select').value = "";
+            isRevertingDropdown = false;
+        }
+
+        function updateTimerDisplay() {
+            const h = Math.floor(state.timer.elapsedTime / 3600).toString().padStart(2, '0');
+            const m = Math.floor((state.timer.elapsedTime % 3600) / 60).toString().padStart(2, '0');
+            const s = (state.timer.elapsedTime % 60).toString().padStart(2, '0');
+            
+            const timeStr = `${h}:${m}:${s}`;
+            document.getElementById('timer-display').innerText = timeStr;
+            document.title = `[${timeStr}] ${state.timer.category} / ${state.timer.subtask}`;
+        }
+
+        // --- SESSIONS EN ATTENTE (PARKING) ---
+        function renderSuspendedSessions() {
+            const listContainer = document.getElementById('suspended-list');
+
+            if (state.suspendedSessions.length === 0) {
+                listContainer.innerHTML = `<p class="text-sm text-tertiary italic text-center py-4 font-semibold">Aucune session en pause actuellement.</p>`;
+                return;
+            }
+
+            listContainer.innerHTML = state.suspendedSessions.map(sess => {
+                const h = Math.floor(sess.elapsedTime / 3600);
+                const m = Math.floor((sess.elapsedTime % 3600) / 60);
+                const s = sess.elapsedTime % 60;
+                const timeStr = `${h > 0 ? h + 'h ' : ''}${m}m ${s}s`;
+                const label = `${sess.category} / ${sess.subtask}`;
+
+                return `
+                    <div class="card-nav flex items-center justify-between p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
+                        <div class="flex flex-col min-w-0 pr-2">
+                            <span class="font-bold text-xs text-primary truncate">${escapeHTML(label)}</span>
+                            <span class="text-xs text-amber-700/80 font-mono font-bold">Chrono suspendu : ${timeStr}</span>
+                        </div>
+                        <div class="flex gap-1.5 flex-shrink-0">
+                            <!-- Play Apple -->
+                            <button type="button" onclick="resumeSuspendedSession('${sess.id}')" class="btn-active p-1.5 bg-apple-green text-white rounded-full" title="Reprendre cette tâche">
+                                <i data-lucide="play" class="w-4 h-4 fill-current" aria-hidden="true"></i>
+                                <span class="sr-only">Reprendre ${label}</span>
+                            </button>
+                            <!-- Valider (Bleu) -->
+                            <button type="button" onclick="commitSuspendedSession('${sess.id}')" class="btn-active p-1.5 bg-apple-blue text-white rounded-full" title="Enregistrer définitivement">
+                                <i data-lucide="check" class="w-4 h-4" aria-hidden="true"></i>
+                                <span class="sr-only">Enregistrer ${label}</span>
+                            </button>
+                            <!-- Supprimer (Rouge) -->
+                            <button type="button" onclick="deleteSuspendedSession('${sess.id}')" class="btn-active p-1.5 bg-apple-red text-white rounded-full" title="Supprimer">
+                                <i data-lucide="trash-2" class="w-4 h-4" aria-hidden="true"></i>
+                                <span class="sr-only">Supprimer ${label}</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function resumeSuspendedSession(id) {
+            if (state.timer.paused === false && state.timer.elapsedTime > 0) {
+                parkRunningSession();
+            }
+
+            const targetIndex = state.suspendedSessions.findIndex(s => s.id === id);
+            if (targetIndex === -1) return;
+            const target = state.suspendedSessions.splice(targetIndex, 1)[0];
+
+            state.timer.category = target.category;
+            state.timer.subtask = target.subtask;
+            state.timer.elapsedTime = target.elapsedTime;
+            
+            isRevertingDropdown = true;
+            document.getElementById('timer-task-select').value = `${target.category} / ${target.subtask}`;
+            isRevertingDropdown = false;
+
+            state.timer.paused = true; 
+            startTimer();
+            refreshUI();
+        }
+
+        function commitSuspendedSession(id) {
+            const targetIndex = state.suspendedSessions.findIndex(s => s.id === id);
+            if (targetIndex === -1) return;
+            const target = state.suspendedSessions.splice(targetIndex, 1)[0];
+
+            const now = new Date();
+            const start = new Date(now.getTime() - (target.elapsedTime * 1000));
+
+            const newSession = {
+                id: 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                category: target.category,
+                subtask: target.subtask,
+                startTime: start.toISOString(),
+                endTime: now.toISOString(),
+                duration: target.elapsedTime
+            };
+
+            state.sessions.unshift(newSession);
+            refreshUI();
+        }
+
+        function deleteSuspendedSession(id) {
+            showCustomConfirm(
+                "Supprimer la session suspendue", 
+                "Êtes-vous sûr de vouloir supprimer cette session en attente ? Le temps cumulé sera définitivement perdu.", 
+                () => {
+                    state.suspendedSessions = state.suspendedSessions.filter(s => s.id !== id);
+                    refreshUI();
+                }
+            );
+        }
+
+        // --- PROPOSITION DE REPRISE DE TACHE GARÉE ---
+        function openResumeSuspendedModal() {
+            if (state.suspendedSessions.length === 0) return;
+
+            const listContainer = document.getElementById('resume-modal-list');
+            listContainer.innerHTML = state.suspendedSessions.map(sess => {
+                const label = `${sess.category} / ${sess.subtask}`;
+                return `
+                    <div class="card-nav flex items-center justify-between p-2.5 bg-slate-100/50 border border-slate-300/30 rounded-2xl">
+                        <span class="font-bold text-xs truncate max-w-[200px] text-primary">${escapeHTML(label)}</span>
+                        <button type="button" onclick="confirmResumeFromModal('${sess.id}')" class="btn-active px-3 py-1.5 bg-apple-green text-white text-xs font-bold rounded-full">
+                            Reprendre
+                        </button>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('resume-suspended-modal').classList.remove('hidden');
+        }
+
+        function closeResumeSuspendedModal() {
+            document.getElementById('resume-suspended-modal').classList.add('hidden');
+        }
+
+        function confirmResumeFromModal(id) {
+            closeResumeSuspendedModal();
+            resumeSuspendedSession(id);
+        }
+
+        // --- FILTRE "AFFICHER / MASQUER TACHES ARCHIVÉES (TERMINÉES)" ---
+        function toggleClosedTasksFilter() {
+            state.showClosedTasks = document.getElementById('toggle-show-closed-tasks').checked;
+            localStorage.setItem('imp_show_closed_tasks', JSON.stringify(state.showClosedTasks));
+            refreshUI();
+        }
+
+        function getFilteredSessions() {
+            let sessions = state.sessions;
+
+            if (!state.showClosedTasks) {
+                sessions = sessions.filter(sess => 
+                    state.tasks.some(activeTask => 
+                        activeTask.category === sess.category && activeTask.subtask === sess.subtask
+                    )
+                );
+            }
+
+            if (state.currentFilterScope === 'all') return sessions;
+
+            return sessions.filter(sess => {
+                const sessDate = new Date(sess.startTime);
+                
+                if (state.currentFilterScope === 'day') {
+                    const filterVal = document.getElementById('filter-day').value;
+                    if (!filterVal) return true;
+                    return sessDate.toISOString().split('T')[0] === filterVal;
+                }
+                
+                if (state.currentFilterScope === 'week') {
+                    const filterVal = document.getElementById('filter-week').value;
+                    if (!filterVal) return true;
+                    const [year, week] = filterVal.split('-W').map(Number);
+                    
+                    const simple = new Date(year, 0, 1 + (week - 1) * 7);
+                    const dow = simple.getDay();
+                    const ISOweekStart = simple;
+                    if (dow <= 4) {
+                        ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+                    } else {
+                        ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+                    }
+                    const ISOweekEnd = new Date(ISOweekStart.getTime());
+                    ISOweekEnd.setDate(ISOweekEnd.getDate() + 7);
+
+                    return sessDate >= ISOweekStart && sessDate < ISOweekEnd;
+                }
+
+                if (state.currentFilterScope === 'month') {
+                    const filterVal = document.getElementById('filter-month').value;
+                    if (!filterVal) return true;
+                    return sess.startTime.startsWith(filterVal);
+                }
+
+                if (state.currentFilterScope === 'range') {
+                    const startVal = document.getElementById('filter-range-start').value;
+                    const endVal = document.getElementById('filter-range-end').value;
+                    if (!startVal || !endVal) return true;
+                    
+                    const startDate = new Date(startVal);
+                    startDate.setHours(0, 0, 0, 0);
+                    const endDate = new Date(endVal);
+                    endDate.setHours(23, 59, 59, 999);
+
+                    return sessDate >= startDate && sessDate <= endDate;
+                }
+
+                return true;
+            });
+        }
+
+        // --- SAISIE MANUELLE ---
+        function handleManualAdd(e) {
+            e.preventDefault();
+            const taskVal = document.getElementById('manual-task-select').value;
+            const dateInput = document.getElementById('manual-date').value;
+            const startTimeInput = document.getElementById('manual-start-time').value; 
+            const durationInput = document.getElementById('manual-duration').value;
+
+            if (!taskVal || !dateInput || !startTimeInput || !durationInput) {
+                showCustomAlert("Saisie incomplète", "Veuillez remplir correctement tous les champs.");
+                return;
+            }
+
+            const [cat, sub] = taskVal.split(' / ');
+            const [hours, minutes] = durationInput.split(':').map(Number);
+            const durationInSec = (hours * 3600) + (minutes * 60);
+
+            const startDateTime = new Date(`${dateInput}T${startTimeInput}:00`);
+            const endDateTime = new Date(startDateTime.getTime() + (durationInSec * 1000));
+
+            const newSession = {
+                id: 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                category: cat,
+                subtask: sub,
+                startTime: startDateTime.toISOString(),
+                endTime: endDateTime.toISOString(),
+                duration: durationInSec
+            };
+
+            state.sessions.unshift(newSession);
+            document.getElementById('manual-session-form').reset();
+            document.getElementById('manual-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('manual-start-time').value = "09:00";
+            refreshUI();
+        }
+
+        // --- INITIALISATION DES FILTRES DE RAPPORTS ---
+        function initFilters() {
+            const container = document.getElementById('filter-inputs-container');
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            if (state.currentFilterScope === 'day') {
+                container.innerHTML = `
+                    <div class="col-span-2">
+                        <label for="filter-day" class="block text-sm font-bold text-secondary mb-1.5">Choisir un jour spécifique</label>
+                        <input type="date" id="filter-day" value="${todayStr}" onchange="refreshUI()" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl">
+                    </div>
+                `;
+            } else if (state.currentFilterScope === 'week') {
+                container.innerHTML = `
+                    <div class="col-span-2">
+                        <label for="filter-week" class="block text-sm font-bold text-secondary mb-1.5">Choisir une semaine complète</label>
+                        <input type="week" id="filter-week" onchange="refreshUI()" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl">
+                    </div>
+                `;
+                const d = new Date();
+                d.setHours(0,0,0,0);
+                d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+                const week1 = new Date(d.getFullYear(),0,4);
+                const currentWeek = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+                document.getElementById('filter-week').value = `${d.getFullYear()}-W${currentWeek.toString().padStart(2, '0')}`;
+            } else if (state.currentFilterScope === 'month') {
+                const currentMonth = todayStr.substring(0, 7);
+                container.innerHTML = `
+                    <div class="col-span-2">
+                        <label for="filter-month" class="block text-sm font-bold text-secondary mb-1.5">Choisir un mois spécifique</label>
+                        <input type="month" id="filter-month" value="${currentMonth}" onchange="refreshUI()" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl">
+                    </div>
+                `;
+            } else if (state.currentFilterScope === 'range') {
+                container.innerHTML = `
+                    <div>
+                        <label for="filter-range-start" class="block text-sm font-bold text-secondary mb-1.5">Date de début</label>
+                        <input type="date" id="filter-range-start" value="${todayStr}" onchange="refreshUI()" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl">
+                    </div>
+                    <div>
+                        <label for="filter-range-end" class="block text-sm font-bold text-secondary mb-1.5">Date de fin</label>
+                        <input type="date" id="filter-range-end" value="${todayStr}" onchange="refreshUI()" class="w-full bg-white/40 text-primary border border-slate-300/40 p-3 rounded-2xl">
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `<p class="col-span-2 text-sm text-secondary italic py-2">Synthèse globale couvrant l'ensemble des données.</p>`;
+            }
+        }
+
+        function changeFilterScope(scope) {
+            state.currentFilterScope = scope;
+            document.querySelectorAll('.scope-btn').forEach(btn => {
+                btn.setAttribute('aria-selected', 'false');
+            });
+            document.getElementById(`scope-${scope}`).setAttribute('aria-selected', 'true');
+            
+            initFilters();
+            refreshUI();
+        }
+
+        // --- SYNTHÈSE ANALYTIQUE (Graphique ordonné) ---
+        function calculateAndRenderStats() {
+            const filtered = getFilteredSessions();
+            const totalSec = filtered.reduce((sum, s) => sum + s.duration, 0);
+            const totalHrs = Math.floor(totalSec / 3600);
+            const totalMins = Math.floor((totalSec % 3600) / 60);
+
+            document.getElementById('stats-total-time').innerText = `${totalHrs}h ${totalMins.toString().padStart(2, '0')}m`;
+            document.getElementById('stats-session-count').innerText = filtered.length;
+
+            const taskGroups = {};
+            filtered.forEach(s => {
+                const label = `${s.category} / ${s.subtask}`;
+                taskGroups[label] = (taskGroups[label] || 0) + s.duration;
+            });
+
+            let activeTask = "Aucune";
+            let maxTime = 0;
+            for (const [task, sec] of Object.entries(taskGroups)) {
+                if (sec > maxTime) {
+                    maxTime = sec;
+                    activeTask = task;
+                }
+            }
+            document.getElementById('stats-active-count').innerText = activeTask;
+            document.getElementById('stats-active-count').title = activeTask;
+
+            refreshChart(taskGroups);
+        }
+
+        function refreshChart(taskGroups = {}) {
+            const ctx = document.getElementById('analyticsChart').getContext('2d');
+            
+            const sortedLabels = Object.keys(taskGroups).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+            const dataHours = sortedLabels.map(label => parseFloat((taskGroups[label] / 3600).toFixed(2)));
+
+            const textColor = '#0f172a';
+            const gridColor = 'rgba(0, 0, 0, 0.06)';
+
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            if (sortedLabels.length === 0) {
+                myChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Pas de données'],
+                        datasets: [{
+                            data: [1],
+                            backgroundColor: ['#cbd5e1'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true, position: 'bottom', labels: { color: textColor, font: { weight: 'bold' } } }
+                        }
+                    }
+                });
+                return;
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedLabels,
+                    datasets: [{
+                        label: 'Heures passées',
+                        data: dataHours,
+                        backgroundColor: 'rgba(0, 122, 255, 0.65)',
+                        borderColor: '#007AFF',
+                        borderWidth: 2,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            grid: { color: gridColor },
+                            ticks: { color: textColor, font: { weight: 'bold' }, callback: value => value + ' h' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: textColor, font: { weight: 'bold' } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // --- CATALOGUE DES TÂCHES ---
+        function renderTasksList() {
+            const container = document.getElementById('tasks-list');
+            if (state.tasks.length === 0) {
+                container.innerHTML = `<p class="text-sm text-tertiary italic text-center py-4">Aucune tâche disponible dans le catalogue.</p>`;
+                return;
+            }
+
+            container.innerHTML = state.tasks.map((task, index) => {
+                const sessions = state.sessions.filter(s => s.category === task.category && s.subtask === task.subtask);
+                const totalSec = sessions.reduce((sum, s) => sum + s.duration, 0);
+                const hrs = Math.floor(totalSec / 3600);
+                const mins = Math.floor((totalSec % 3600) / 60);
+                const label = `${task.category} / ${task.subtask}`;
+
+                return `
+                    <div class="card-nav flex items-center justify-between p-3.5 bg-white/20 border border-white/25 rounded-2xl">
+                        <div class="flex flex-col min-w-0 pr-2">
+                            <span class="font-bold text-sm text-primary truncate">${escapeHTML(label)}</span>
+                            <span class="text-xs text-secondary font-medium">Total : ${hrs}h ${mins}m (${sessions.length} sessions)</span>
+                        </div>
+                        <div class="flex gap-2 flex-shrink-0">
+                            <!-- Play: fond vert, icône blanche -->
+                            <button type="button" onclick="reuseTask('${escapeHTML(task.category)}', '${escapeHTML(task.subtask)}')" class="btn-active p-2 bg-apple-green text-white rounded-full shadow-sm" title="Démarrer le chronomètre">
+                                <i data-lucide="play" class="w-4 h-4 fill-current" aria-hidden="true"></i>
+                                <span class="sr-only">Lancer ${label}</span>
+                            </button>
+                            <!-- Modifier: fond bleu, icône blanche -->
+                            <button type="button" onclick="openRenameTaskModal('${escapeHTML(task.category)}', '${escapeHTML(task.subtask)}')" class="btn-active p-2 bg-apple-blue text-white rounded-full shadow-sm" title="Renommer">
+                                <i data-lucide="pencil" class="w-4 h-4" aria-hidden="true"></i>
+                                <span class="sr-only">Renommer ${label}</span>
+                            </button>
+                            <!-- Clore: fond rouge, icône blanche -->
+                            <button type="button" onclick="closeTask('${escapeHTML(task.category)}', '${escapeHTML(task.subtask)}')" class="btn-active p-2 bg-apple-red text-white rounded-full shadow-sm" title="Clore la tâche">
+                                <i data-lucide="archive-restore" class="w-4 h-4" aria-hidden="true"></i>
+                                <span class="sr-only">Clore ${label}</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function reuseTask(category, subtask) {
+            const combined = `${category} / ${subtask}`;
+            
+            if (state.timer.paused === false && (state.timer.category !== category || state.timer.subtask !== subtask)) {
+                pendingCategory = category;
+                pendingSubtask = subtask;
+
+                document.getElementById('switch-current-task-label').innerText = `${state.timer.category} / ${state.timer.subtask}`;
+                document.getElementById('switch-new-task-label').innerText = combined;
+                updateSwitchDurationDisplay();
+                
+                document.getElementById('switch-task-modal').classList.remove('hidden');
+                return;
+            }
+
+            // Reprendre depuis le garage si existante
+            const existingSuspended = state.suspendedSessions.find(s => s.category === category && s.subtask === subtask);
+            if (existingSuspended) {
+                state.timer.category = category;
+                state.timer.subtask = subtask;
+                state.timer.elapsedTime = existingSuspended.elapsedTime;
+                state.suspendedSessions = state.suspendedSessions.filter(s => s.id !== existingSuspended.id);
+            } else {
+                state.timer.category = category;
+                state.timer.subtask = subtask;
+                state.timer.elapsedTime = 0;
+            }
+
+            isRevertingDropdown = true;
+            document.getElementById('timer-task-select').value = combined;
+            isRevertingDropdown = false;
+            
+            startTimer();
+            refreshUI();
+        }
+
+        function closeTask(category, subtask) {
+            const label = `${category} / ${subtask}`;
+            const taskSessions = state.sessions.filter(s => s.category === category && s.subtask === subtask);
+
+            if (taskSessions.length === 0) {
+                showCustomConfirm(
+                    "Retirer la tâche", 
+                    `La tâche "${label}" ne possède aucune session. Voulez-vous la retirer du catalogue ?`, 
+                    () => {
+                        state.tasks = state.tasks.filter(t => !(t.category === category && t.subtask === subtask));
+                        refreshUI();
+                    }
+                );
+                return;
+            }
+
+            showCustomConfirm(
+                "Clôturer la tâche", 
+                `Vous allez clôturer "${label}". Un fichier CSV individuel contenant l'historique sera immédiatement téléchargé sur iCloud, la tâche sera retirée des choix rapides, mais les données historiques globales resteront préservées. Confirmer ?`, 
+                () => {
+                    exportSessionsToCSV(taskSessions, `cloture_${category.replace(/\s+/g, '_')}_${subtask.replace(/\s+/g, '_')}`);
+                    state.tasks = state.tasks.filter(t => !(t.category === category && t.subtask === subtask));
+                    refreshUI();
+                }
+            );
+        }
+
+        // --- RENOMMER UNE TÂCHE ---
+        function openRenameTaskModal(category, subtask) {
+            document.getElementById('rename-old-category').value = category;
+            document.getElementById('rename-old-subtask').value = subtask;
+            document.getElementById('rename-task-category').value = category;
+            document.getElementById('rename-task-subtask').value = subtask;
+            
+            document.getElementById('rename-task-modal').classList.remove('hidden');
+            document.getElementById('rename-task-category').focus();
+        }
+
+        function closeRenameTaskModal() {
+            document.getElementById('rename-task-modal').classList.add('hidden');
+        }
+
+        function handleRenameTaskSubmit(e) {
+            e.preventDefault();
+            const oldCat = document.getElementById('rename-old-category').value;
+            const oldSub = document.getElementById('rename-old-subtask').value;
+            const newCat = document.getElementById('rename-task-category').value.trim();
+            const newSub = document.getElementById('rename-task-subtask').value.trim();
+
+            if (!newCat || !newSub) return;
+
+            const exists = state.tasks.some(t => 
+                !(t.category === oldCat && t.subtask === oldSub) && 
+                t.category.toLowerCase() === newCat.toLowerCase() && 
+                t.subtask.toLowerCase() === newSub.toLowerCase()
+            );
+
+            if (exists) {
+                showCustomAlert("Conflit de nom", "Une tâche portant cette catégorie et cette sous-tâche existe déjà.");
+                return;
+            }
+
+            state.tasks = state.tasks.map(t => {
+                if (t.category === oldCat && t.subtask === oldSub) {
+                    return { category: newCat, subtask: newSub };
+                }
+                return t;
+            });
+
+            let modifiedSessionsCount = 0;
+            state.sessions = state.sessions.map(s => {
+                if (s.category === oldCat && s.subtask === oldSub) {
+                    modifiedSessionsCount++;
+                    return { ...s, category: newCat, subtask: newSub };
+                }
+                return s;
+            });
+
+            state.suspendedSessions = state.suspendedSessions.map(s => {
+                if (s.category === oldCat && s.subtask === oldSub) {
+                    return { ...s, category: newCat, subtask: newSub };
+                }
+                return s;
+            });
+
+            if (state.timer.category === oldCat && state.timer.subtask === oldSub) {
+                state.timer.category = newCat;
+                state.timer.subtask = newSub;
+                document.getElementById('current-running-task').innerText = `En cours : ${newCat} / ${newSub}`;
+            }
+
+            closeRenameTaskModal();
+            refreshUI();
+
+            setTimeout(() => {
+                const msg = modifiedSessionsCount > 0 
+                    ? `La tâche a été renommée. ${modifiedSessionsCount} sessions historiques ont été modifiées en cascade. Souhaitez-vous télécharger une sauvegarde globale (CSV) sur iCloud ?`
+                    : `La tâche prédéfinie a été renommée avec succès. Souhaitez-vous télécharger une sauvegarde globale ?`;
+                
+                showCustomConfirm("Données mises à jour", msg, () => {
+                    exportAllToCSV();
+                });
+            }, 300);
+        }
+
+        // --- JOURNAL D'ACTIVITÉ (Historique ordonné) ---
+        function renderHistoryTable() {
+            const filtered = getFilteredSessions();
+            const tbody = document.getElementById('history-table-body');
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-8 text-center text-tertiary italic font-medium">
+                            Aucune session d'activité à afficher.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            const sortedTable = [...filtered].sort((a, b) => {
+                const catCompare = a.category.localeCompare(b.category, 'fr', { sensitivity: 'base' });
+                if (catCompare !== 0) return catCompare;
+                const subCompare = a.subtask.localeCompare(b.subtask, 'fr', { sensitivity: 'base' });
+                if (subCompare !== 0) return subCompare;
+                return new Date(b.startTime) - new Date(a.startTime);
+            });
+
+            tbody.innerHTML = sortedTable.map(sess => {
+                const dateObj = new Date(sess.startTime);
+                const dateStr = dateObj.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const timeStart = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                
+                const hrs = Math.floor(sess.duration / 3600);
+                const mins = Math.floor((sess.duration % 3600) / 60);
+                const secs = sess.duration % 60;
+                const durationStr = `${hrs > 0 ? hrs + 'h ' : ''}${mins}m ${secs}s`;
+
+                return `
+                    <tr class="hover:bg-white/25 transition-colors duration-300">
+                        <td class="py-3 px-4 font-bold text-primary">${escapeHTML(sess.category)}</td>
+                        <td class="py-3 px-4 text-secondary">${escapeHTML(sess.subtask)}</td>
+                        <td class="py-3 px-4 text-secondary font-semibold">Le ${dateStr} à ${timeStart}</td>
+                        <td class="py-3 px-4 text-primary font-mono font-bold">${durationStr}</td>
+                        <td class="py-3 px-4 text-right">
+                            <button type="button" onclick="deleteSession('${sess.id}')" class="btn-active p-2 text-rose-700 hover:text-rose-900 hover:bg-rose-50 rounded-full" aria-label="Supprimer la session">
+                                <i data-lucide="trash-2" class="w-4.5 h-4.5" aria-hidden="true"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function deleteSession(id) {
+            showCustomConfirm(
+                "Supprimer la session", 
+                "Êtes-vous sûr de vouloir supprimer définitivement cette session d'activité ?", 
+                () => {
+                    state.sessions = state.sessions.filter(s => s.id !== id);
+                    refreshUI();
+                }
+            );
+        }
+
+        function clearHistoryWithModal() {
+            showCustomConfirm(
+                "Réinitialiser l'historique", 
+                "ATTENTION : Cette action supprimera l'intégralité du journal d'activité locale de ce navigateur. Êtes-vous sûr de vouloir continuer ?", 
+                () => {
+                    state.sessions = [];
+                    refreshUI();
+                }
+            );
+        }
+
+        // --- GESTION DES EXPORTS CSV ---
+        function exportAllToCSV() {
+            if (state.sessions.length === 0 && state.suspendedSessions.length === 0) {
+                showCustomAlert("Données vides", "Aucune donnée disponible pour l'exportation.");
+                return;
+            }
+            exportSessionsToCSV(state.sessions, "time_tracking_global");
+        }
+
+        function exportSessionsToCSV(sessionsList, filename) {
+            let csvContent = "\uFEFF"; // BOM UTF-8
+            csvContent += "Categorie;Sous-tache;Date Debut;Date Fin;Duree (secondes);Duree Format\r\n";
+
+            sessionsList.forEach(s => {
+                const h = Math.floor(s.duration / 3600);
+                const m = Math.floor((s.duration % 3600) / 60);
+                const dFormat = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                
+                const cat = (s.category || "Inconnue").replace(/;/g, ',');
+                const sub = (s.subtask || "Standard").replace(/;/g, ',');
+                
+                csvContent += `"${cat}";"${sub}";"${s.startTime}";"${s.endTime}";${s.duration};"${dFormat}"\r\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            
+            if (navigator.msSaveBlob) {
+                navigator.msSaveBlob(blob, `${filename}.csv`);
+            } else {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", `${filename}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        // --- IMPORTATION ET DOUBLONS ---
+        function handleCSVImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                processCSV(e.target.result);
+            };
+            reader.readAsText(file);
+            event.target.value = ''; 
+        }
+
+        function processCSV(text) {
+            const lines = text.split(/\r?\n/);
+            if (lines.length < 2) {
+                showCustomAlert("Erreur CSV", "La structure du document importé est invalide.");
+                return;
+            }
+
+            const parsedSessions = [];
+            const detectedTasks = [];
+            const delimiter = lines[0].includes(';') ? ';' : ',';
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                const cells = line.split(delimiter).map(cell => cell.replace(/^["']|["']$/g, '').trim());
+                if (cells.length < 5) continue;
+
+                const category = cells[0];
+                const subtask = cells[1];
+                const startTime = cells[2];
+                const endTime = cells[3];
+                const duration = parseInt(cells[4], 10);
+
+                if (category && subtask && startTime && endTime && !isNaN(duration)) {
+                    parsedSessions.push({
+                        id: 'import_' + Math.random().toString(36).substr(2, 5) + '_' + Date.now(),
+                        category,
+                        subtask,
+                        startTime: new Date(startTime).toISOString(),
+                        endTime: new Date(endTime).toISOString(),
+                        duration
+                    });
+                    detectedTasks.push({ category, subtask });
+                }
+            }
+
+            if (parsedSessions.length === 0) {
+                showCustomAlert("Importation vide", "Aucune session valide n'a été détectée.");
+                return;
+            }
+
+            const duplicates = [];
+            const cleanSessions = [];
+
+            parsedSessions.forEach(imported => {
+                const isDupe = state.sessions.some(existing => 
+                    existing.category === imported.category && 
+                    existing.subtask === imported.subtask && 
+                    existing.startTime === imported.startTime
+                );
+
+                if (isDupe) {
+                    duplicates.push(imported);
+                } else {
+                    cleanSessions.push(imported);
+                }
+            });
+
+            if (cleanSessions.length > 0) {
+                state.sessions = [...cleanSessions, ...state.sessions];
+                detectedTasks.forEach(task => {
+                    const exists = state.tasks.some(t => t.category === task.category && t.subtask === task.subtask);
+                    if (!exists) {
+                        state.tasks.push(task);
+                    }
+                });
+            }
+
+            if (duplicates.length > 0) {
+                state.pendingImport = duplicates;
+                showConflictModal(duplicates);
+            } else {
+                showCustomAlert("Succès", `${cleanSessions.length} sessions ont été importées.`);
+                refreshUI();
+            }
+        }
+
+        function showConflictModal(duplicates) {
+            const container = document.getElementById('import-conflict-list');
+            container.innerHTML = duplicates.map(d => {
+                const dateStr = new Date(d.startTime).toLocaleDateString('fr-FR');
+                const hourStr = new Date(d.startTime).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                const hrs = Math.floor(d.duration / 3600);
+                const mins = Math.floor((d.duration % 3600) / 60);
+                return `
+                    <div class="border-l-4 border-amber-600 pl-3 py-1 bg-amber-50 text-primary">
+                        <strong>${escapeHTML(d.category)} / ${escapeHTML(d.subtask)}</strong><br>
+                        Le ${dateStr} à ${hourStr} (Durée : ${hrs}h ${mins}m)
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('import-conflict-modal').classList.remove('hidden');
+        }
+
+        function closeImportConflictModal() {
+            state.pendingImport = [];
+            document.getElementById('import-conflict-modal').classList.add('hidden');
+            refreshUI();
+        }
+
+        function resolveAllConflicts(strategy) {
+            const duplicates = state.pendingImport;
+
+            duplicates.forEach(imported => {
+                if (strategy === 'merge') {
+                    state.sessions.unshift(imported);
+                } else if (strategy === 'overwrite') {
+                    state.sessions = state.sessions.filter(existing => 
+                        !(existing.category === imported.category && 
+                          existing.subtask === imported.subtask && 
+                          existing.startTime === imported.startTime)
+                    );
+                    state.sessions.unshift(imported);
+                }
+            });
+
+            if (strategy !== 'skip') {
+                duplicates.forEach(d => {
+                    const exists = state.tasks.some(t => t.category === d.category && t.subtask === d.subtask);
+                    if (!exists) {
+                        state.tasks.push({ category: d.category, subtask: d.subtask });
+                    }
+                });
+            }
+
+            state.pendingImport = [];
+            document.getElementById('import-conflict-modal').classList.add('hidden');
+            showCustomAlert("Résolution terminée", "Les conflits de doublons ont été arbitrés.");
+            refreshUI();
+        }
+
+        // --- GESTIONNAIRES DE MODALS ---
+        function openNewTaskModal() {
+            document.getElementById('new-task-modal').classList.remove('hidden');
+            document.getElementById('new-task-category').focus();
+        }
+
+        function closeNewTaskModal() {
+            document.getElementById('new-task-modal').classList.add('hidden');
+            document.getElementById('new-task-category').value = "";
+            document.getElementById('new-task-subtask').value = "";
+        }
+
+        function handleNewTaskSubmit(e) {
+            e.preventDefault();
+            const category = document.getElementById('new-task-category').value.trim();
+            const subtask = document.getElementById('new-task-subtask').value.trim();
+
+            if (!category || !subtask) return;
+
+            const exists = state.tasks.some(t => t.category.toLowerCase() === category.toLowerCase() && t.subtask.toLowerCase() === subtask.toLowerCase());
+            
+            if (exists) {
+                showCustomAlert("Structure existante", "Cette structure de tâche existe déjà dans votre catalogue.");
+                return;
+            }
+
+            state.tasks.push({ category, subtask });
+            closeNewTaskModal();
+            refreshUI();
+            
+            document.getElementById('timer-task-select').value = `${category} / ${subtask}`;
+        }
+
+        // --- SÉCURITÉ XSS ---
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+    </script>
+</body>
+</html>
